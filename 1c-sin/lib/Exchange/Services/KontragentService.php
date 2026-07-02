@@ -265,7 +265,7 @@ class KontragentService
         if (!empty($data['businessRegion_id'])) {
             $regionId = !empty($data['businessRegion_id']['b24_id'])
                 ? $data['businessRegion_id']['b24_id']
-                : SearchEntityService::searchSmartProcess($data['businessRegion_id']['guid'],EntityType::SMART_PROCESS_1032);
+                : SearchEntityService::searchSmartProcess($data['businessRegion_id']['guid'],EntityType::SMART_PROCESS_BUSINESS_REGION);
             if ($regionId) {
                 $fields['PARENT_ID_1032'] = $regionId;
             }

@@ -21,6 +21,9 @@ class WarehouseService
 
     public static function checkExistWarehouse(string $warehouseGUID): ?array
     {
+        if (empty($warehouseGUID)) {
+            return null;
+        }
         self::init();
 
         $store = StoreTable::getList([

@@ -55,7 +55,7 @@ class SearchEntityService
     public static function searchSmartProcess(string $guid, EntityType $type): ?int
     {
         $factoryId = $type->getFactoryId();
-        if ($factoryId === null) {
+        if ($factoryId === null || empty($guid)) {
             return null;
         }
 

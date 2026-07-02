@@ -8,7 +8,7 @@ enum StageOneCTestSredaEnum: string
 {
     case NEW = 'C13:NEW';                    // Подготовка КП
     case PREPARATION = 'C13:PREPARATION';    // Согласование КП/Договора
-    case PREPAYMENT_INVOICE = 'C13:PREPAYMENT_INVOICE'; // Предоплата
+    case PREPAYMENT_INVOICE = 'C13:PREPAYMENT_INVOIC'; // Предоплата
     case EXECUTING = 'C13:EXECUTING';        // Отгрузка \ Поверка
     case FINAL_INVOICE = 'C13:FINAL_INVOICE'; // Дебиторская задолженность
     case WON = 'C13:WON';                    // Сделка успешна

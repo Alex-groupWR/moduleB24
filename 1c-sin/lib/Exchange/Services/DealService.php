@@ -189,10 +189,10 @@ class DealService
     private static function buildParentFields(array $data): array
     {
         $bindings = [
-            'typeAgreement' => [self::PARENT_AGREEMENT, EntityType::SMART_PROCESS_1068],
-            'businessRegion' => [self::PARENT_BUSINESS_REGION, EntityType::SMART_PROCESS_1032],
-            'organisation' => [self::PARENT_ORGANISATION, EntityType::SMART_PROCESS_1118],
-            'methodDelivery' => [self::PARENT_DELIVERY, EntityType::SMART_PROCESS_1122],
+            'typeAgreement' => [self::PARENT_AGREEMENT, EntityType::SMART_PROCESS_AGREEMENT_TYPE],
+            'businessRegion' => [self::PARENT_BUSINESS_REGION, EntityType::SMART_PROCESS_BUSINESS_REGION],
+            'organisation' => [self::PARENT_ORGANISATION, EntityType::SMART_PROCESS_ORGANISATION],
+            'methodDelivery' => [self::PARENT_DELIVERY, EntityType::SMART_PROCESS_METHOD_DELIVERY],
         ];
 
         $result = [];

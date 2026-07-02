@@ -123,7 +123,7 @@ class KontragentBuilder
         if ($businessRegionId > 0) {
             $company['businessRegion_id'] = [
                 'b24_id' => $businessRegionId,
-                'guid'   => SearchEntityService::getGuidByIdSP($businessRegionId, EntityType::SMART_PROCESS_1032),
+                'guid'   => SearchEntityService::getGuidByIdSP($businessRegionId, EntityType::SMART_PROCESS_BUSINESS_REGION),
             ];
         }
 

@@ -48,7 +48,7 @@ class AgreementService extends BaseSmartProcessService
     {
         return [
             'companyId' => EntityType::COMPANY,
-            'organisationId' => EntityType::SMART_PROCESS_1118,
+            'organisationId' => EntityType::SMART_PROCESS_ORGANISATION,
         ];
     }
 

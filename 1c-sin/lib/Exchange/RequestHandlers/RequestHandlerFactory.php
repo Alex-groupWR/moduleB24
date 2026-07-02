@@ -33,6 +33,7 @@ class RequestHandlerFactory
             'GetKontragent'     => GetKontragentRequestHandler::class,
             'GetProduct'        => GetProductRequestHandler::class,
             'GetWarehouse'      => GetWarehouseRequestHandler::class,
+            'Order'      => AddOrChangeOrderRequestHandler::class,
         ];
 
         $class = Arr::first(
