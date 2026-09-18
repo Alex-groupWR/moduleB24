@@ -147,7 +147,7 @@ class RusgeocomOrderProductTable extends DataManager
      */
     public static function upsert(int $dealId, int $b24LineId, array $product): void
     {
-        $lineId1c = (string)($product['lineProductId1с'] ?? '');
+        $lineId1c = (string)($product['lineProductId1c'] ?? '');
         $now      = new DateTime();
 
         $existing = static::getRow([

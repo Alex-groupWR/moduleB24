@@ -189,7 +189,7 @@ class MessageQueue
         ];
     }
 
-    private static function getLastMessageId(int $syncId): string
+    private static function getLastMessageId(int $syncId): ?string
     {
         return MessageTable::query()
         ->setSelect(static::getMessageSelect())

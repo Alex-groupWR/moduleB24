@@ -21,14 +21,14 @@ class KontragentBuilder
 {
     public const SEGMENT_FIELD          = 'UF_CRM_1774519329551';
     private const STATUS_WORK_FIELD      = 'UF_CRM_1774519961417';
-    private const MARK_DELETE_FIELD      = 'UF_CRM_COMPANY_3885072309690';
+    public const MARK_DELETE_FIELD      = 'UF_CRM_COMPANY_3885072309690';
     private const IS_BUYER_FIELD         = 'UF_CRM_1776097823371';
     private const IS_SUPPLIER_FIELD      = 'UF_CRM_1776097831202';
     private const IS_COMPETITOR_FIELD    = 'UF_CRM_1776097840683';
     private const IS_OTHER_FIELD         = 'UF_CRM_1776097854105';
     public const BUSINESS_REGION_FIELD  = 'PARENT_ID_1032';
 
-    private const REQUISITE_MARK_DELETE_FIELD = 'UF_CRM_1774516144';
+    public const REQUISITE_MARK_DELETE_FIELD = 'UF_CRM_1774516144';
     private const IS_WHOLESALER_FIELD         = 'UF_CRM_1776109744';
 
     private const ADDRESS_TYPE_MAP = [

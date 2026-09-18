@@ -48,4 +48,45 @@ enum DealDirectionEnum: string
             },
         };
     }
+
+    public static function fromB24EnumId(int $id): ?self
+    {
+        foreach (self::cases() as $case) {
+            if ($case->getB24EnumId() === $id) {
+                return $case;
+            }
+        }
+        return null;
+    }
+
+    public function getLabelFromStageValue(string $stageValue): ?string
+    {
+        if ($stageValue === '') {
+            return null;
+        }
+
+        return match ($this) {
+            self::RETAIL => match ($stageValue) {
+                StageRetailEnum::NEW->value => 'Подготовка КП',
+                StageRetailEnum::PREPARATION->value => 'Согласование КП/Договора',
+                StageRetailEnum::PREPAYMENT_INVOICE->value => 'Предоплата',
+                StageRetailEnum::EXECUTING->value => 'Отгрузка \ Поверка',
+                StageRetailEnum::FINAL_INVOICE->value => 'Дебиторская задолженность',
+                StageRetailEnum::WON->value => 'Сделка успешна',
+                StageRetailEnum::LOSE->value => 'Сделка провалена',
+                default => null,
+            },
+            self::ONEC_TEST_SREDA => match ($stageValue) {
+                StageOneCTestSredaEnum::NEW->value => 'Подготовка КП',
+                StageOneCTestSredaEnum::PREPARATION->value => 'Согласование КП/Договора',
+                StageOneCTestSredaEnum::PREPAYMENT_INVOICE->value => 'Предоплата',
+                StageOneCTestSredaEnum::EXECUTING->value => 'Отгрузка \ Поверка',
+                StageOneCTestSredaEnum::FINAL_INVOICE->value => 'Дебиторская задолженность',
+                StageOneCTestSredaEnum::WON->value => 'Сделка успешна',
+                StageOneCTestSredaEnum::LOSE->value => 'Сделка провалена',
+                StageOneCTestSredaEnum::APOLOGY->value => 'Анализ причины провала',
+                default => null,
+            },
+        };
+    }
 }

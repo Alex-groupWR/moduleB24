@@ -37,6 +37,7 @@ class ExchangeClient
 			ExchangeProtocol::KEY_PARAMS => $payload,
 		];
 
+
 		$response = $this->transport->send($request);
 
 		if ($response['error'] && in_array(trim($response['error']), $this->getSessionErrors())) {

@@ -92,10 +92,10 @@ class OrderService
             : $factory->getUpdateOperation($item);
 
         $operation->disableCheckAccess()
-            ->disableAllChecks() // Отключает проверки валидации полей на стадиях
-            ->disableAutomation(); // Отключает роботов складского учета и триггеры
+            ->disableAllChecks()
+            ->disableAutomation();
 
-        $result = $operation->disableCheckAccess()->launch();
+        $result = $operation->launch();
 
         if (!$result->isSuccess()) {
             return $this->errorResult(
@@ -123,7 +123,22 @@ class OrderService
             $this->persistProductRows($savedId, $request['products'], $productRows);
         }
 
-        return $this->buildResponse($savedId, $guid, $isNew, $resolved, $productRows);
+        $categoryId = (int)$item->getCategoryId();
+        $stageId    = (string)$item->getStageId();
+
+        $directionEnum = DealDirectionEnum::fromB24EnumId($categoryId);
+        $directionName = $directionEnum?->value ?? (string)$categoryId;
+        $stageName     = $directionEnum?->getLabelFromStageValue($stageId) ?? $stageId;
+
+        return $this->buildResponse(
+            $savedId,
+            $guid,
+            $isNew,
+            $resolved,
+            $productRows,
+            $directionName,
+            $stageName,
+        );
     }
 
     // ------------------------------------------------------------------
@@ -167,6 +182,7 @@ class OrderService
             'COMMENTS'              => $data['comments']       ?? '',
             'OPPORTUNITY'           => (float)($data['summa'] ?? 0),
             'IS_MANUAL_OPPORTUNITY' => 'Y',
+            'SOURCE_ID'             => 'UC_JQBKGB',
             self::UF_NUMBER_1C      => $data['number1C']      ?? '',
             self::UF_MARK_DELETE    => $data['markDelete']    ?? false,
             self::UF_NAME_AGREEMENT => $data['agreementName'] ?? '',
@@ -181,7 +197,6 @@ class OrderService
         if ($resolved->companyId !== null) {
             $fields['COMPANY_ID'] = $resolved->companyId;
         }
-
 
         $fields = $this->applyDateDocument($fields, $data['dateDocument'] ?? null);
         $fields = $this->applyDirectionAndStage($fields, $data['direction'] ?? null, $data['stage'] ?? null);
@@ -228,15 +243,11 @@ class OrderService
         return $fields;
     }
 
-    // ------------------------------------------------------------------
-    // Поиск существующей сделки
-    // ------------------------------------------------------------------
-
     private function findDealId(array $data): ?int
     {
-        if (!empty($data['b24_id']) && (int)$data['b24_id'] > 0) {
+        if (!empty($data['b24_id']) && $this->parseInt($data['b24_id']) > 0) {
             $row = DealTable::getList([
-                'filter' => ['=ID' => (int)$data['b24_id']],
+                'filter' => ['=ID' => $this->parseInt($data['b24_id'])],
                 'select' => ['ID'],
             ])->fetch();
 
@@ -259,13 +270,8 @@ class OrderService
         return null;
     }
 
-    // ------------------------------------------------------------------
-    // Компания и менеджер
-    // ------------------------------------------------------------------
-
     private function resolveCompanyId(array $data): ?int
     {
-
         return !empty($data['company_id'])
             ? SearchEntityService::searchCompany($data['company_id'])
             : null;
@@ -300,18 +306,10 @@ class OrderService
         }
     }
 
-    // ------------------------------------------------------------------
-    // Товарные позиции — основная синхронизация
-    // ------------------------------------------------------------------
-
     /**
      * Синхронизирует товарные строки сделки с данными из 1С.
      *
-     * lineProductId == 0 → создать новую строку
-     * lineProductId  > 0 → найти строку по ID и обновить
-     * Строки чьи ID не пришли → удалить (не включаем в finalRows)
-     *
-     * @return array<int, array{b24_id: int, lineProductId: string, lineProductId1c: string}>
+     * @return array<int, array{b24_id: int, lineProductId: int, lineProductId1c: string}|array{error: string, lineProductId: string, lineProductId1c: string}>
      */
     private function syncProducts(int $dealId, array $products, int $storeId, bool $taxInclude): array
     {
@@ -327,7 +325,6 @@ class OrderService
             return [];
         }
 
-        // Индексируем текущие строки сделки по ID для O(1) доступа
         $existingById = [];
         foreach ($item->getProductRows() as $row) {
             $existingById[(int)$row->getId()] = $row;
@@ -339,24 +336,24 @@ class OrderService
         $sort        = self::SORT_STEP;
 
         foreach ($products as $product) {
-            $dto = $this->buildProductRowDto($product, $storeId, $taxInclude, $sort);
+            $lineId1c = (string)($product['lineProductId1c'] ?? $product['lineProductId1с'] ?? '');
+            $dto      = $this->buildProductRowDto($product, $storeId, $taxInclude, $sort);
 
             if ($dto === null) {
-                // Товар не найден в каталоге
-                $errorsLog[$this->productErrorKey('not_found', $product)] = [
+                $errorsLog[$lineId1c] = [
                     'error'           => 'не удалось найти товар',
-                    'lineProductId'   => (string)($product['lineProductId']   ?? 0),
-                    'lineProductId1c' => (string)($product['lineProductId1c'] ?? ''),
+                    'lineProductId'   => (string)($product['lineProductId'] ?? 0),
+                    'lineProductId1c' => $lineId1c,
                 ];
                 continue;
             }
 
             if ($dto->lineProductId > 0) {
                 if (!isset($existingById[$dto->lineProductId])) {
-                    $errorsLog[$this->productErrorKey('row_not_found', $product)] = [
+                    $errorsLog[$lineId1c] = [
                         'error'           => 'не удалось найти позицию',
                         'lineProductId'   => (string)$dto->lineProductId,
-                        'lineProductId1c' => (string)($product['lineProductId1c'] ?? ''),
+                        'lineProductId1c' => $lineId1c,
                     ];
                     continue;
                 }
@@ -373,7 +370,12 @@ class OrderService
         $finalRows = $this->buildFinalRows($existingById, $incomingIds, $newRows);
         $item->setProductRows($finalRows);
 
-        $result = $factory->getUpdateOperation($item)->disableCheckAccess()->launch();
+        $operation = $factory->getUpdateOperation($item);
+        $operation->disableCheckAccess()
+            ->disableAllChecks()
+            ->disableAutomation();
+
+        $result = $operation->launch();
 
         if (!$result->isSuccess()) {
             $this->logger->error('Ошибка сохранения товарных строк', [
@@ -383,12 +385,11 @@ class OrderService
             return [];
         }
 
-        return $this->buildProductRowsResponse($dealId, $products, $errorsLog);
+        return $this->buildProductRowsResponse($dealId, $products, $incomingIds, $errorsLog);
     }
 
     /**
      * Строит DTO товарной строки.
-     * Возвращает null если товар не найден в каталоге Б24.
      */
     private function buildProductRowDto(array $product, int $storeId, bool $taxInclude, int $sort): ?ProductRowDto
     {
@@ -404,7 +405,12 @@ class OrderService
             return null;
         }
 
-        $lineProductId  = (int)($product['lineProductId'] ?? 0);
+        $rawVat = $product['vat'] ?? '0%';
+        if ($rawVat === null || $rawVat === 0 || $rawVat === '0' || $rawVat === '') {
+            $rawVat = '0%';
+        }
+
+        $lineProductId  = $this->parseInt($product['lineProductId'] ?? 0);
         $quantity       = $this->parseDecimal((string)($product['count']       ?? '1'));
         $totalSum       = $this->parseDecimal((string)($product['summa']       ?? '0'));
         $totalDiscount  = $this->parseDecimal((string)($product['skidka_ruch'] ?? '0'))
@@ -414,7 +420,7 @@ class OrderService
         $finalPriceUnit = $totalSum / $safeQty;
         $discountUnit   = $totalDiscount / $safeQty;
         $basePriceUnit  = $this->parseDecimal((string)($product['price'] ?? '0'));
-        $vatRate        = (float)preg_replace('/[^0-9.]/', '', str_replace(',', '.', (string)($product['vat'] ?? '0')));
+        $vatRate        = (float)preg_replace('/[^0-9.]/', '', str_replace(',', '.', (string)$rawVat));
 
         $fields = [
             'PRODUCT_ID'       => $productId,
@@ -434,9 +440,6 @@ class OrderService
         return new ProductRowDto(lineProductId: $lineProductId, fields: $fields);
     }
 
-    /**
-     * Применяет данные к существующей строке через сеттеры
-     */
     private function applyRowData(ProductRow $row, array $data): void
     {
         $row->setProductId($data['PRODUCT_ID']);
@@ -453,12 +456,6 @@ class OrderService
 
     /**
      * Собирает финальный список строк: обновлённые + новые.
-     * Строки не попавшие в $incomingIds — не включаются (Битрикс их удалит).
-     *
-     * @param ProductRow[] $existingById
-     * @param int[]        $incomingIds
-     * @param ProductRow[] $newRows
-     * @return ProductRow[]
      */
     private function buildFinalRows(array $existingById, array $incomingIds, array $newRows): array
     {
@@ -476,18 +473,17 @@ class OrderService
     /**
      * Строит ответ с b24_id каждой товарной строки после сохранения.
      */
-    private function buildProductRowsResponse(int $dealId, array $requestProducts, array $errorsLog): array
-    {
-        $incomingIds = array_filter(
-            array_map(fn($p) => (int)($p['lineProductId'] ?? 0), $requestProducts),
-            fn($id) => $id > 0
-        );
+    private function buildProductRowsResponse(
+        int   $dealId,
+        array $requestProducts,
+        array $successfullyUpdatedIds,
+        array $errorsLog
+    ): array {
+        $savedRows = CCrmProductRow::LoadRows('D', $dealId) ?: [];
 
-        // Новые строки — те, чей ID не был в запросе
-        $savedRows      = CCrmProductRow::LoadRows('D', $dealId) ?: [];
         $newlySavedRows = array_values(array_filter(
             $savedRows,
-            fn($row) => !in_array((int)$row['ID'], $incomingIds, true)
+            fn($row) => !in_array((int)$row['ID'], $successfullyUpdatedIds, true)
         ));
         usort($newlySavedRows, fn($a, $b) => (int)$a['SORT'] <=> (int)$b['SORT']);
 
@@ -495,26 +491,25 @@ class OrderService
         $newRowPointer = 0;
 
         foreach ($requestProducts as $product) {
-            $lineProductId = (int)($product['lineProductId'] ?? 0);
-            $guid          = (string)($product['guid'] ?? '');
+            $lineProductId   = $this->parseInt($product['lineProductId'] ?? 0);
+            $lineProductId1c = (string)($product['lineProductId1c'] ?? $product['lineProductId1с'] ?? '');
 
-            $errorKey = $this->findErrorKey($errorsLog, $lineProductId, $guid);
-            if ($errorKey !== null) {
-                $response[] = $errorsLog[$errorKey];
+            if (isset($errorsLog[$lineProductId1c])) {
+                $response[] = $errorsLog[$lineProductId1c];
                 continue;
             }
 
-            if ($lineProductId > 0) {
+            if ($lineProductId > 0 && in_array($lineProductId, $successfullyUpdatedIds, true)) {
                 $response[] = [
                     'b24_id'          => $lineProductId,
-                    'lineProductId'   => (int)$lineProductId,
-                    'lineProductId1c' => (int)($product['lineProductId1c'] ?? ''),
+                    'lineProductId'   => $lineProductId,
+                    'lineProductId1c' => $lineProductId1c,
                 ];
-            } elseif (isset($newlySavedRows[$newRowPointer])) {
+            } elseif ($lineProductId === 0 && isset($newlySavedRows[$newRowPointer])) {
                 $response[] = [
                     'b24_id'          => (int)$newlySavedRows[$newRowPointer]['ID'],
                     'lineProductId'   => 0,
-                    'lineProductId1c' => (int)($product['lineProductId1c'] ?? ''),
+                    'lineProductId1c' => $lineProductId1c,
                 ];
                 $newRowPointer++;
             }
@@ -523,46 +518,44 @@ class OrderService
         return $response;
     }
 
-    // ------------------------------------------------------------------
-    // Промежуточная таблица
-    // ------------------------------------------------------------------
-
     private function persistProductRows(int $dealId, array $requestProducts, array $productRowsResponse): void
     {
-        // Индекс: lineProductId1c → b24_line_product_id из ответа
         $b24IdByLineId1c = [];
         foreach ($productRowsResponse as $row) {
-            if (isset($row['lineProductId1c'], $row['b24_id'])) {
-                $b24IdByLineId1c[(string)$row['lineProductId1c']] = (int)$row['b24_id'];
+            $rowLine1c = (string)($row['lineProductId1c'] ?? '');
+            if ($rowLine1c !== '' && isset($row['b24_id'])) {
+                $b24IdByLineId1c[$rowLine1c] = (int)$row['b24_id'];
             }
         }
 
         $incomingLineIds1c = array_filter(
-            array_map(fn($p) => (string)($p['lineProductId1c'] ?? ''), $requestProducts),
+            array_map(
+                fn($p) => (string)($p['lineProductId1c'] ?? $p['lineProductId1с'] ?? ''),
+                $requestProducts
+            ),
             fn($id) => $id !== ''
         );
 
         $this->deleteObsoleteProductRows($dealId, array_values($incomingLineIds1c));
 
         foreach ($requestProducts as $product) {
-            $lineId1c  = (string)($product['lineProductId1c'] ?? '');
+            $lineId1c  = (string)($product['lineProductId1c'] ?? $product['lineProductId1с'] ?? '');
             $b24LineId = $b24IdByLineId1c[$lineId1c] ?? 0;
 
             try {
                 RusgeocomOrderProductTable::upsert($dealId, $b24LineId, $product);
             } catch (\Throwable $e) {
                 $this->logger->error('Ошибка upsert в промтаблицу', [
-                    'dealId'    => $dealId,
-                    'lineId1c'  => $lineId1c,
-                    'error'     => $e->getMessage(),
+                    'dealId'   => $dealId,
+                    'lineId1c' => $lineId1c,
+                    'error'    => $e->getMessage(),
                 ]);
             }
         }
     }
 
     /**
-     * Удаляет из промтаблицы строки которых нет в текущем запросе.
-     * Если $incomingLineIds1c пуст — удаляет все строки сделки.
+     * Удаляет из промтаблицы строки, которых нет в текущем запросе.
      */
     private function deleteObsoleteProductRows(int $dealId, array $incomingLineIds1c): void
     {
@@ -598,12 +591,16 @@ class OrderService
         string               $guid,
         bool                 $isNew,
         ResolvedRelationsDto $resolved,
-        array                $productRows
+        array                $productRows,
+        string               $directionName,
+        string               $stageName,
     ): array {
         return [
             'b24_id'         => $savedId,
             'guid'           => $guid,
             'status'         => $isNew ? 'created' : 'updated',
+            'category'       => $directionName,
+            'stage'          => $stageName,
             'company_id'     => $resolved->companyId,
             'organisation'   => $resolved->organisationId,
             'agreement'      => $resolved->agreementId,
@@ -636,9 +633,15 @@ class OrderService
         return $row ? (int)$row['ID'] : 0;
     }
 
+    private function parseInt(mixed $value): int
+    {
+        $clean = preg_replace('/[^\d]/u', '', (string)$value);
+        return (int)$clean;
+    }
+
     private function parseDecimal(string $value): float
     {
-        $clean = preg_replace('/\s+/', '', $value);
+        $clean = preg_replace('/\s+/u', '', $value);
         $clean = str_replace(',', '.', $clean);
         $clean = preg_replace('/[^0-9.\-]/', '', $clean);
 
@@ -653,30 +656,5 @@ class OrderService
         }
 
         return $factory;
-    }
-
-    /**
-     * Уникальный ключ ошибки для errorsLog
-     */
-    private function productErrorKey(string $type, array $product): string
-    {
-        return sprintf('%s_%s_%s', $type, $product['guid'] ?? '', $product['lineProductId'] ?? 0);
-    }
-
-    /**
-     * Ищет ключ ошибки в errorsLog по lineProductId или guid
-     */
-    private function findErrorKey(array $errorsLog, int $lineProductId, string $guid): ?string
-    {
-        foreach ($errorsLog as $key => $errorData) {
-            if ($lineProductId > 0 && $errorData['lineProductId'] === (string)$lineProductId) {
-                return $key;
-            }
-            if ($lineProductId === 0 && str_contains($key, 'not_found_' . $guid)) {
-                return $key;
-            }
-        }
-
-        return null;
     }
 }

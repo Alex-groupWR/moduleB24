@@ -10,6 +10,7 @@ class RequestOneCFactory
 	{
 		$map = [
 			'Kontragent' => CreateRequestKontragent::class,
+            'OrderStage' => CreateRequestDealStage::class,
 		];
 
 		return isset($map[$action])

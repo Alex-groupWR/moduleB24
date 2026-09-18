@@ -253,7 +253,7 @@ class KontragentService
             'TITLE' => $data['companyName'],
             'ORIGIN_ID' => $data['guid'],
             'ASSIGNED_BY_ID' => !empty($data['manage_id']['b24_id']) ? $data['manage_id']['b24_id'] : SearchEntityService::searchUser($data['manage_id']['guid']) ?? 1,
-            'UF_CRM_1774519329551' => SegmentEnum::getIdByText($data['segment']),
+            'UF_CRM_1774519329551' => !empty($data['segment']) ? SegmentEnum::getIdByText($data['segment']) : 5284,
             'UF_CRM_1774519961417' => $data['statusWork'],
             'UF_CRM_COMPANY_3885072309690' => $data['markDelete'],
             'UF_CRM_1776097823371' => $data['isBuyer'],

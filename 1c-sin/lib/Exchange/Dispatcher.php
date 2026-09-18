@@ -47,7 +47,9 @@ class Dispatcher
                         ];
                     } else {
                         foreach ($param[ExchangeProtocol::ITEM] as $item) {
-                            $entityResults[] = $actionClass->handle($item ?? []);
+                            $result = $actionClass->handle($item ?? []);
+                            RequestHandlerFactory::logActivityIfNeeded($entity, $item ?? [], $result); // ← добавили
+                            $entityResults[] = $result;
                         }
                     }
 
@@ -60,10 +62,13 @@ class Dispatcher
             }
 
 
+            $params = $packet[ExchangeProtocol::KEY_PARAMS] ?? [];
+            $result = RequestHandlerFactory::getByAction($action)->handle($params);
+            RequestHandlerFactory::logActivityIfNeeded($action, $params, $result);
+
             return [
                 ExchangeProtocol::KEY_ACTION => $action,
-                ExchangeProtocol::KEY_RESULT => RequestHandlerFactory::getByAction($action)
-                    ->handle($packet[ExchangeProtocol::KEY_PARAMS] ?? [])
+                ExchangeProtocol::KEY_RESULT => $result,
             ];
         } catch (Throwable $exc) {
             static::getLogger()->error($exc->getMessage(), static::shrinkPacketForLog($packet));

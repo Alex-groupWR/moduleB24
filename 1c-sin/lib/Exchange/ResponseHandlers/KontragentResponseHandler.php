@@ -6,6 +6,7 @@ namespace Rusgeocom\Rusgeocom\Exchange\ResponseHandlers;
 use Bitrix\Crm\CompanyTable;
 use Bitrix\Crm\EntityRequisite;
 use Bitrix\Main\Loader;
+use Local\Backoffice\ActivityService;
 use Rusgeocom\Rusgeocom\Tools\Log\AbstractLogger;
 use Rusgeocom\Rusgeocom\Tools\Log\LoggerFactory;
 
@@ -46,6 +47,15 @@ class KontragentResponseHandler implements ResponseHandlerInterface
 
         if (!empty($errors)) {
             $this->logger->warning('Ошибки при обновлении внешних ключей контрагента', $errors);
+        }
+
+        if (!empty($response['URL1C'])) {
+            ActivityService::create1CLog(
+                $response['company']['b24_id'],
+                $response['titleActivity']??'Заказ в 1с',
+                (string)$response['URL1C'],
+                \CCrmOwnerType::Company
+            );
         }
 
         return array_merge($response, ['sync_errors' => $errors]);

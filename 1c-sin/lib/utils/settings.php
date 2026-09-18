@@ -44,6 +44,27 @@ class Settings
 	public const string VAT_RATE = 'vat_rate';
 	public const string IGNORED_USER_IDS_IN_REPORTS = 'ignored_user_ids_in_reports';
 
+    public const string DEAL_SEND_TO_ONEC_ALLOWED_USERS = 'deal_send_to_onec_allowed_users';
+
+
+    public static function getDealSendToOneCAllowedUserIds(): array
+    {
+        $optionValue = Option::get(self::MODULE_ID, self::DEAL_SEND_TO_ONEC_ALLOWED_USERS, '');
+        if ($optionValue === '') {
+            return [];
+        }
+
+        return array_values(array_filter(array_map(
+            static fn(string $id) => (int)trim($id),
+            explode(',', $optionValue)
+        )));
+    }
+
+    public static function isUserAllowedToSendDealToOneC(int $userId): bool
+    {
+        return $userId > 0 && in_array($userId, self::getDealSendToOneCAllowedUserIds(), true);
+    }
+
 	public static function isNewYearDesignEnabled(): bool
 	{
 		return Option::get(self::MODULE_ID, self::NEW_YEAR_DESIGN_ENABLED_OPTION_CODE, 'N') === 'Y';

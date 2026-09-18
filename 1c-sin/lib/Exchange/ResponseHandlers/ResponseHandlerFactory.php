@@ -15,6 +15,7 @@ class ResponseHandlerFactory
 		$map = [
 			'ping' => PingResponseHandler::class,
 			'Kontragent' => KontragentResponseHandler::class,
+            'Order' => OrderResponseHandler::class,
 		];
 
 		$class = Arr::first(
